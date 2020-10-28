@@ -13,7 +13,7 @@
           (pkg:
 
             let
-              isGit = builtins.match ''git\+(.*)\?rev=([0-9a-f]+)(#.*)?'' pkg.source;
+              isGit = builtins.match ''git\+(.*)\?((rev)=([0-9a-f]+)(#.*)?|(branch)=([^#]+)#([0-9a-f]+))'' pkg.source;
               registry = "registry+https://github.com/rust-lang/crates.io-index";
             in
 
@@ -36,9 +36,11 @@
 
             else if isGit != null then
               let
-                rev = builtins.elemAt isGit 1;
+                hasBranch = "branch" == builtins.elemAt isGit 5;
+                ref = if hasBranch then builtins.elemAt isGit 6 else ''HEAD'';
+                rev = if hasBranch then builtins.elemAt isGit 7 else builtins.elemAt isGit 3;
                 url = builtins.elemAt isGit 0;
-                tree = builtins.fetchGit { inherit url rev; };
+                tree = builtins.fetchGit { inherit url ref rev; };
               in pkgs.runCommand "${pkg.name}-${pkg.version}" {}
                 ''
                   tree=${tree}
@@ -60,6 +62,7 @@
                   git = "${url}"
                   rev = "${rev}"
                   replace-with = "vendored-sources"
+                  ${if hasBranch then ''branch = "${ref}"'' else ''''}
                   EOF
                 ''
 
